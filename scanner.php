@@ -86,6 +86,7 @@ function scan($file)
                 } else {
                     return new Token(TokenCodes::LT_RELATIONAL_OPERATOR);
                 }
+                // no break
             case '>':
                 $char = fgetc($file);
                 $column++;
@@ -98,6 +99,7 @@ function scan($file)
                 } else {
                     return new Token(TokenCodes::GT_RELATIONAL_OPERATOR);
                 }
+                // no break
             case '=':
                 $char = fgetc($file);
                 $column++;
@@ -110,6 +112,7 @@ function scan($file)
                 } else {
                     return new Token(TokenCodes::ASSIGNMENT_OPERATOR);
                 }
+                // no break
             case '!':
                 $char = fgetc($file);
                 $column++;
@@ -122,6 +125,7 @@ function scan($file)
                 } else {
                     exit("ERRO na linha {$line}, coluna {$column}: Exclamação não seguida de um igual");
                 }
+                // no break
             case '+':
                 $char = fgetc($file);
                 $column++;
@@ -175,23 +179,20 @@ function scan($file)
                                 $column = 0;
                             }
                         }
-
+                        
                         while ($char === '*') {
                             $char = fgetc($file);
                             $column++;
                         }
-        
-                        !feof($file) ?: exit("ERRO na linha {$line}, coluna {$column}:
-                        Fim de arquivo dentro de comentário multilinha");
-                        
-                        $char = fgetc($file);
-                        $column++;
+
                         
                         if ($char === '/') {
                             $char = fgetc($file);
                             $column++;
                             continue 3;
                         }
+
+                        !feof($file) ?: exit("ERRO na linha {$line}, coluna {$column}: Fim de arquivo dentro de comentário multilinha");
                     }
                 } else {
                     return new Token(TokenCodes::DIV_ARITHMETIC_OPERATOR);
