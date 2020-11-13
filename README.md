@@ -20,16 +20,18 @@ Observação 3: A mensagem deve ser clara e específica de erro, sempre que for 
 
 Símbolos:
 
--   letra ::= \[a-z]
--   dígito ::= \[0-9]
--   id ::= (letra | "\_") (letra | "\_" | dígito)\*
--   oprelacional ::= < | > | <= | >= | == | !=
--   oparitmético ::= "+" | "-" | "\*" | "/" | "="
--   especial ::= ")" | "(" | "{" | "}" | "," | ";"
--   palreservada ::= main | if | else | while | do | for | int | float | char
--   inteiro ::= dígito+
--   float ::= dígito\*.dígito+
--   char ::= 'letra' | 'dígito' // Uma constante do tipo char (entre aspas simples)
+```
+letra ::= [a-z]
+dígito ::= [0-9]
+id ::= (letra | "_") (letra | "_" | dígito)*
+oprelacional ::= < | > | <= | >= | == | !=
+oparitmético ::= "+" | "-" | "*" | "/" | "="
+especial ::= ")" | "(" | "{" | "}" | "," | ";"
+palreservada ::= main | if | else | while | do | for | int | float | char
+inteiro ::= dígito+
+float ::= dígito*.dígito+
+char ::= 'letra' | 'dígito' // Uma constante do tipo char (entre aspas simples)
+```
 
 Aspectos Gerais da Linguagem
 
@@ -92,8 +94,10 @@ Não teremos declaracões de procedimentos nem funções, apenas de variáveis. 
 
 As variáveis podem ser do tipo int, float ou char, e as declarações devem ter o seguinte formato:
 
+```
 <decl_var> ::= <tipo> <id> {,<id>}\* ";"
 <tipo> ::= int | float | char
+```
 
 **3. Expressões**
 
@@ -116,6 +120,7 @@ O significado de if, if-else, while e do-while é como na linguagem C padrão.
 
 **5. Sintaxe**
 
+```
 <programa> ::= int main"("")" <bloco>
 <bloco> ::= “{“ {<decl_var>}_ {<comando>}_ “}”
 <comando> ::= <comando_básico> | <iteração> | if "("<expr_relacional>")" <comando> {else <comando>}?
@@ -126,6 +131,7 @@ O significado de if, if-else, while e do-while é como na linguagem C padrão.
 <expr_arit> ::= <expr_arit> "+" <termo> | <expr_arit> "-" <termo> | <termo>
 <termo> ::= <termo> "\*" <fator> | <termo> “/” <fator> | <fator>
 <fator> ::= “(“ <expr_arit> “)” | <id> | <float> | <inteiro> | <char>
+```
 
 Nota: os símbolos abre e fecha chaves, quando entre aspas, são terminais
 
