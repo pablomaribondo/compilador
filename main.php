@@ -4,6 +4,7 @@ namespace compiler;
 
 require_once('parser.php');
 require_once('scanner.php');
+require_once('Symbol.php');
 require_once('Token.php');
 require_once('TokenCodes.php');
 
