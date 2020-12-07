@@ -4,18 +4,13 @@ namespace compiler;
 
 function parse($file)
 {
-    static $scope;
-    static $symbolTable;
     static $token;
-
-    $scope = 0;
-    $symbolTable = array();
     $token = scan($file);
 
-    program($file, $token, $scope, $symbolTable);
+    program($file, $token);
 }
 
-function declaration($file, &$token, $scope, &$symbolTable)
+function declaration($file, &$token)
 {
     $code = null;
 
@@ -32,10 +27,10 @@ function declaration($file, &$token, $scope, &$symbolTable)
     }
 
     if ($token->code === TokenCodes::IDENTIFIER) {
-        $exists = searchSymbol($symbolTable, $token->lexeme, $scope, true);
+        $exists = searchSymbol($token->lexeme, SymbolTable::$scope, true);
 
         is_null($exists)
-            ? array_push($symbolTable, (new Symbol($code, $token->lexeme, $scope)))
+            ? array_push(SymbolTable::$table, (new Symbol($code, $token->lexeme, SymbolTable::$scope)))
             : exit("ERRO na linha {$token->line}, coluna {$token->column}: " .
                 'Não podem haver variáveis com o mesmo nome no mesmo escopo');
 
@@ -49,10 +44,10 @@ function declaration($file, &$token, $scope, &$symbolTable)
         $token = scan($file);
 
         if ($token->code === TokenCodes::IDENTIFIER) {
-            $exists = searchSymbol($symbolTable, $token->lexeme, $scope, true);
+            $exists = searchSymbol($token->lexeme, SymbolTable::$scope, true);
 
             is_null($exists)
-                ? array_push($symbolTable, (new Symbol($code, $token->lexeme, $scope)))
+                ? array_push(SymbolTable::$table, (new Symbol($code, $token->lexeme, SymbolTable::$scope)))
                 : exit("ERRO na linha {$token->line}, coluna {$token->column}: " .
                     'Não podem haver variáveis com o mesmo nome no mesmo escopo');
 
@@ -69,7 +64,7 @@ function declaration($file, &$token, $scope, &$symbolTable)
             'Declaração mal formada, ";" esperado');
 }
 
-function program($file, &$token, &$scope, &$symbolTable)
+function program($file, &$token)
 {
     $token->code === TokenCodes::INT_RESERVED_WORD
         ? $token = scan($file)
@@ -91,7 +86,7 @@ function program($file, &$token, &$scope, &$symbolTable)
         : exit("ERRO na linha {$token->line}, coluna {$token->column}: " .
             'Programa mal formado, ")" esperado');
 
-    codeBlock($file, $token, $scope, $symbolTable);
+    codeBlock($file, $token);
 
     $token->code === TokenCodes::EOF
         ? $token = scan($file)
@@ -99,21 +94,21 @@ function program($file, &$token, &$scope, &$symbolTable)
             'Programa mal formado, fim de arquivo esperado');
 }
 
-function codeBlock($file, &$token, &$scope, &$symbolTable)
+function codeBlock($file, &$token)
 {
     $token->code === TokenCodes::OPEN_CURLY_BRACKET
         ? $token = scan($file)
         : exit("ERRO na linha {$token->line}, coluna {$token->column}: " .
             'Bloco mal formado, "{" esperado');
 
-    $scope++;
+    SymbolTable::$scope++;
 
     while (
         $token->code === TokenCodes::INT_RESERVED_WORD ||
         $token->code === TokenCodes::FLOAT_RESERVED_WORD ||
         $token->code === TokenCodes::CHAR_RESERVED_WORD
     ) {
-        declaration($file, $token, $scope, $symbolTable);
+        declaration($file, $token);
     }
 
     while (
@@ -123,7 +118,7 @@ function codeBlock($file, &$token, &$scope, &$symbolTable)
         $token->code === TokenCodes::DO_RESERVED_WORD ||
         $token->code === TokenCodes::IF_RESERVED_WORD
     ) {
-        command($file, $token, $scope, $symbolTable);
+        command($file, $token);
     }
 
     $token->code === TokenCodes::CLOSE_CURLY_BRACKET
@@ -131,25 +126,25 @@ function codeBlock($file, &$token, &$scope, &$symbolTable)
         : exit("ERRO na linha {$token->line}, coluna {$token->column}: " .
             'Bloco mal formado, "}" esperado');
 
-    foreach (array_reverse($symbolTable) as $symbol) {
-        if ($symbol->scope === $scope) {
-            array_pop($symbolTable);
+    foreach (array_reverse(SymbolTable::$table) as $symbol) {
+        if ($symbol->scope === SymbolTable::$scope) {
+            array_pop(SymbolTable::$table);
         }
     }
 
-    $scope--;
+    SymbolTable::$scope--;
 }
 
-function command($file, &$token, $scope, $symbolTable)
+function command($file, &$token)
 {
     switch ($token->code) {
         case TokenCodes::IDENTIFIER:
         case TokenCodes::OPEN_CURLY_BRACKET:
-            basicCommand($file, $token, $scope, $symbolTable);
+            basicCommand($file, $token);
             break;
         case TokenCodes::WHILE_RESERVED_WORD:
         case TokenCodes::DO_RESERVED_WORD:
-            iteration($file, $token, $scope, $symbolTable);
+            iteration($file, $token);
             break;
         case TokenCodes::IF_RESERVED_WORD:
             $token = scan($file);
@@ -159,18 +154,18 @@ function command($file, &$token, $scope, $symbolTable)
                 : exit("ERRO na linha {$token->line}, coluna {$token->column}: " .
                     'Comando mal formado, "(" esperado');
 
-            relationalExpression($file, $token, $scope, $symbolTable);
+            relationalExpression($file, $token);
 
             $token->code === TokenCodes::CLOSE_PARENTHESIS
                 ? $token = scan($file)
                 : exit("ERRO na linha {$token->line}, coluna {$token->column}: " .
                     'Comando mal formado, ")" esperado');
 
-            command($file, $token, $scope, $symbolTable);
+            command($file, $token);
 
             if ($token->code === TokenCodes::ELSE_RESERVED_WORD) {
                 $token = scan($file);
-                command($file, $token, $scope, $symbolTable);
+                command($file, $token);
             }
 
             break;
@@ -179,21 +174,21 @@ function command($file, &$token, $scope, $symbolTable)
     }
 }
 
-function basicCommand($file, &$token, $scope, $symbolTable)
+function basicCommand($file, &$token)
 {
     switch ($token->code) {
         case TokenCodes::IDENTIFIER:
-            assignment($file, $token, $scope, $symbolTable);
+            assignment($file, $token);
             break;
         case TokenCodes::OPEN_CURLY_BRACKET:
-            codeBlock($file, $token, $scope, $symbolTable);
+            codeBlock($file, $token);
             break;
         default:
             exit("ERRO na linha {$token->line}, coluna {$token->column}: Comando mal formado");
     }
 }
 
-function iteration($file, &$token, $scope, $symbolTable)
+function iteration($file, &$token)
 {
     switch ($token->code) {
         case TokenCodes::WHILE_RESERVED_WORD:
@@ -204,19 +199,19 @@ function iteration($file, &$token, $scope, $symbolTable)
                 : exit("ERRO na linha {$token->line}, coluna {$token->column}: " .
                     'Iteração mal formada, "(" esperado');
 
-            relationalExpression($file, $token, $scope, $symbolTable);
+            relationalExpression($file, $token);
 
             $token->code === TokenCodes::CLOSE_PARENTHESIS
                 ? $token = scan($file)
                 : exit("ERRO na linha {$token->line}, coluna {$token->column}: " .
                     'Iteração mal formada, ")" esperado');
 
-            command($file, $token, $scope, $symbolTable);
+            command($file, $token);
             break;
         case TokenCodes::DO_RESERVED_WORD:
             $token = scan($file);
 
-            command($file, $token, $scope, $symbolTable);
+            command($file, $token);
 
             $token->code === TokenCodes::WHILE_RESERVED_WORD
                 ? $token = scan($file)
@@ -228,7 +223,7 @@ function iteration($file, &$token, $scope, $symbolTable)
                 : exit("ERRO na linha {$token->line}, coluna {$token->column}: " .
                     'Iteração mal formada, "(" esperado');
 
-            relationalExpression($file, $token, $scope, $symbolTable);
+            relationalExpression($file, $token);
 
             $token->code === TokenCodes::CLOSE_PARENTHESIS
                 ? $token = scan($file)
@@ -246,12 +241,12 @@ function iteration($file, &$token, $scope, $symbolTable)
     }
 }
 
-function assignment($file, &$token, $scope, &$symbolTable)
+function assignment($file, &$token)
 {
     $identifier = null;
 
     if ($token->code === TokenCodes::IDENTIFIER) {
-        $exists = searchSymbol($symbolTable, $token->lexeme, $scope, false);
+        $exists = searchSymbol($token->lexeme, SymbolTable::$scope, false);
 
         if (is_null($exists)) {
             exit("ERRO na linha {$token->line}, coluna {$token->column}: " .
@@ -270,7 +265,7 @@ function assignment($file, &$token, $scope, &$symbolTable)
         : exit("ERRO na linha {$token->line}, coluna {$token->column}: " .
                     'Atribuição mal formada, "=" esperado');
 
-    $expression = addSubArithmeticExpression($file, $token, $scope, $symbolTable);
+    $expression = addSubArithmeticExpression($file, $token);
 
     checkCompatibility($identifier, $expression, TokenCodes::ASSIGNMENT_OPERATOR, $token->line, $token->column);
 
@@ -280,11 +275,11 @@ function assignment($file, &$token, $scope, &$symbolTable)
                     'Atribuição mal formada, ";" esperado');
 }
 
-function relationalExpression($file, &$token, $scope, $symbolTable)
+function relationalExpression($file, &$token)
 {
     $operation = null;
 
-    $firstExpression = addSubArithmeticExpression($file, $token, $scope, $symbolTable);
+    $firstExpression = addSubArithmeticExpression($file, $token);
 
     if (
         $token->code === TokenCodes::EQUALITY_OPERATOR ||
@@ -301,7 +296,7 @@ function relationalExpression($file, &$token, $scope, $symbolTable)
         exit("ERRO na linha {$token->line}, coluna {$token->column}: Expressão relacional mal formada");
     }
 
-    $secondExpression = addSubArithmeticExpression($file, $token, $scope, $symbolTable);
+    $secondExpression = addSubArithmeticExpression($file, $token);
 
     return checkCompatibility($firstExpression, $secondExpression, $operation, $token->line, $token->column);
 }
@@ -316,13 +311,13 @@ function relationalExpression($file, &$token, $scope, $symbolTable)
 * nonTerminalExpression -> - multDivArithmeticExpression nonTerminalExpression (E' -> - M E')
 * nonTerminalExpression -> ε (E' -> ε)
 */
-function addSubArithmeticExpression($file, &$token, $scope, $symbolTable)
+function addSubArithmeticExpression($file, &$token)
 {
-    $firstExpression = multDivArithmeticExpression($file, $token, $scope, $symbolTable);
-    return nonTerminalExpression($file, $token, $scope, $symbolTable, $firstExpression);
+    $firstExpression = multDivArithmeticExpression($file, $token);
+    return nonTerminalExpression($file, $token, $firstExpression);
 }
 
-function nonTerminalExpression($file, &$token, $scope, $symbolTable, $first=null)
+function nonTerminalExpression($file, &$token, $first=null)
 {
     $result = $first;
 
@@ -336,7 +331,7 @@ function nonTerminalExpression($file, &$token, $scope, $symbolTable, $first=null
 
         $firstExpression = null;
         if ($token->code === TokenCodes::IDENTIFIER) {
-            $exists = searchSymbol($symbolTable, $token->lexeme, $scope, false);
+            $exists = searchSymbol($token->lexeme, SymbolTable::$scope, false);
 
             if (is_null($exists)) {
                 exit("ERRO na linha {$token->line}, coluna {$token->column}: " .
@@ -349,18 +344,18 @@ function nonTerminalExpression($file, &$token, $scope, $symbolTable, $first=null
         }
 
 
-        $secondExpression = multDivArithmeticExpression($file, $token, $scope, $symbolTable);
+        $secondExpression = multDivArithmeticExpression($file, $token);
 
         $result = checkCompatibility($firstExpression, $secondExpression, $operation, $token->line, $token->column);
-        nonTerminalExpression($file, $token, $scope, $symbolTable);
+        nonTerminalExpression($file, $token);
     }
 
     return $result;
 }
 
-function multDivArithmeticExpression($file, &$token, $scope, $symbolTable)
+function multDivArithmeticExpression($file, &$token)
 {
-    $firstExpression = factor($file, $token, $scope, $symbolTable);
+    $firstExpression = factor($file, $token);
 
     while (
         $token->code === TokenCodes::MULT_ARITHMETIC_OPERATOR ||
@@ -369,20 +364,20 @@ function multDivArithmeticExpression($file, &$token, $scope, $symbolTable)
         $operation = $token->code;
         $token = scan($file);
 
-        $secondExpression = factor($file, $token, $scope, $symbolTable);
+        $secondExpression = factor($file, $token);
 
         $firstExpression = checkCompatibility($firstExpression, $secondExpression, $operation, $token->line, $token->column);
     }
     return $firstExpression;
 }
 
-function factor($file, &$token, $scope, $symbolTable)
+function factor($file, &$token)
 {
     switch ($token->code) {
         case TokenCodes::OPEN_PARENTHESIS:
             $token = scan($file);
 
-            $expression = addSubArithmeticExpression($file, $token, $scope, $symbolTable);
+            $expression = addSubArithmeticExpression($file, $token);
 
             $token->code === TokenCodes::CLOSE_PARENTHESIS
                 ? $token = scan($file)
@@ -391,7 +386,7 @@ function factor($file, &$token, $scope, $symbolTable)
 
             return $expression;
         case TokenCodes::IDENTIFIER:
-            $exists = searchSymbol($symbolTable, $token->lexeme, $scope, false);
+            $exists = searchSymbol($token->lexeme, SymbolTable::$scope, false);
 
             if (is_null($exists)) {
                 exit("ERRO na linha {$token->line}, coluna {$token->column}: " .
@@ -442,11 +437,11 @@ function checkCompatibility($firstValue, $secondValue, $operation, $line, $colum
     return TokenCodes::FLOAT_VALUE;
 }
 
-function searchSymbol($symbolTable, $lexeme, $scope, $new)
+function searchSymbol($lexeme, $scope, $new)
 {
     $code = null;
 
-    foreach ($symbolTable as $symbol) {
+    foreach (SymbolTable::$table as $symbol) {
         if ($new && $scope !== $symbol->scope) {
             break;
         }
