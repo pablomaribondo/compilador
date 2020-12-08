@@ -161,11 +161,20 @@ function command($file, &$token)
                 : exit("ERRO na linha {$token->line}, coluna {$token->column}: " .
                     'Comando mal formado, ")" esperado');
 
+            echo 'if '.GCI::getNewTemp().' == 0 goto '.GCI::getNewLabel()."\n";
+
             command($file, $token);
 
             if ($token->code === TokenCodes::ELSE_RESERVED_WORD) {
+                echo 'goto '.GCI::getNewLabel()."\n";
+                echo GCI::getRollbackLabel(2).":\n";
+
                 $token = scan($file);
                 command($file, $token);
+
+                echo GCI::getRollbackLabel(1).":\n";
+            } else {
+                echo GCI::getRollbackLabel(1).":\n";
             }
 
             break;
@@ -192,6 +201,7 @@ function iteration($file, &$token)
 {
     switch ($token->code) {
         case TokenCodes::WHILE_RESERVED_WORD:
+            echo GCI::getNewLabel().":\n";
             $token = scan($file);
 
             $token->code === TokenCodes::OPEN_PARENTHESIS
@@ -206,9 +216,16 @@ function iteration($file, &$token)
                 : exit("ERRO na linha {$token->line}, coluna {$token->column}: " .
                     'Iteração mal formada, ")" esperado');
 
+            echo 'if '.GCI::getNewTemp().' == 0 goto '.GCI::getNewLabel()."\n";
+
             command($file, $token);
+
+            echo 'goto '.GCI::getRollbackLabel(2)."\n";
+            echo GCI::getRollbackLabel(1).":\n";
+
             break;
         case TokenCodes::DO_RESERVED_WORD:
+            echo GCI::getNewLabel().":\n";
             $token = scan($file);
 
             command($file, $token);
@@ -235,6 +252,8 @@ function iteration($file, &$token)
                 : exit("ERRO na linha {$token->line}, coluna {$token->column}: " .
                     'Iteração mal formada, ";" esperado');
 
+            echo 'if '.GCI::getNewTemp().' != 0 goto '.GCI::getRollbackLabel(1)."\n";
+
             break;
         default:
             exit("ERRO na linha {$token->line}, coluna {$token->column}: Iteração mal formada");
@@ -243,6 +262,7 @@ function iteration($file, &$token)
 
 function assignment($file, &$token)
 {
+    $first = null;
     $identifier = null;
 
     if ($token->code === TokenCodes::IDENTIFIER) {
@@ -253,6 +273,7 @@ function assignment($file, &$token)
                 'Variáveis devem ser declaradas antes de serem usadas');
         }
 
+        $first = $token->lexeme;
         $identifier = $exists;
         $token = scan($file);
     } else {
@@ -265,9 +286,13 @@ function assignment($file, &$token)
         : exit("ERRO na linha {$token->line}, coluna {$token->column}: " .
                     'Atribuição mal formada, "=" esperado');
 
+    $second = $token->lexeme;
     $expression = addSubArithmeticExpression($file, $token);
 
-    checkCompatibility($identifier, $expression, TokenCodes::ASSIGNMENT_OPERATOR, $token->line, $token->column);
+    $result = checkCompatibility($identifier, $expression, TokenCodes::ASSIGNMENT_OPERATOR, $token->line, $token->column);
+    intToFloatCast($result, $first, $second);
+
+    echo $first.' = '.$second."\n";
 
     $token->code === TokenCodes::SEMICOLON
         ? $token = scan($file)
@@ -278,8 +303,9 @@ function assignment($file, &$token)
 function relationalExpression($file, &$token)
 {
     $operation = null;
-
+    $first = $token->lexeme;
     $firstExpression = addSubArithmeticExpression($file, $token);
+    $operation = $token->code;
 
     if (
         $token->code === TokenCodes::EQUALITY_OPERATOR ||
@@ -289,16 +315,40 @@ function relationalExpression($file, &$token)
         $token->code === TokenCodes::LE_RELATIONAL_OPERATOR ||
         $token->code === TokenCodes::GE_RELATIONAL_OPERATOR
     ) {
-        $operation = $token->code;
-
         $token = scan($file);
     } else {
         exit("ERRO na linha {$token->line}, coluna {$token->column}: Expressão relacional mal formada");
     }
 
+    $second = $token->lexeme;
     $secondExpression = addSubArithmeticExpression($file, $token);
 
-    return checkCompatibility($firstExpression, $secondExpression, $operation, $token->line, $token->column);
+    $result = checkCompatibility($firstExpression, $secondExpression, $operation, $token->line, $token->column);
+
+    intToFloatCast($result, $first, $second);
+
+    switch ($operation) {
+        case TokenCodes::EQUALITY_OPERATOR:
+            echo GCI::getNewTemp().' = '.$first.' == '.$second."\n";
+            break;
+        case TokenCodes::INEQUALITY_OPERATOR:
+            echo GCI::getNewTemp().' = '.$first.' != '.$second."\n";
+            break;
+        case TokenCodes::LT_RELATIONAL_OPERATOR:
+            echo GCI::getNewTemp().' = '.$first.' < '.$second."\n";
+            break;
+        case TokenCodes::GT_RELATIONAL_OPERATOR:
+            echo GCI::getNewTemp().' = '.$first.' > '.$second."\n";
+            break;
+        case TokenCodes::LE_RELATIONAL_OPERATOR:
+            echo GCI::getNewTemp().' = '.$first.' <= '.$second."\n";
+            break;
+        case TokenCodes::GE_RELATIONAL_OPERATOR:
+            echo GCI::getNewTemp().' = '.$first.' >= '.$second."\n";
+            break;
+    }
+
+    return $result;
 }
 
 /*
@@ -313,13 +363,17 @@ function relationalExpression($file, &$token)
 */
 function addSubArithmeticExpression($file, &$token)
 {
+    $first = $token->lexeme;
     $firstExpression = multDivArithmeticExpression($file, $token);
-    return nonTerminalExpression($file, $token, $firstExpression);
+    return nonTerminalExpression($file, $token, $firstExpression, $first);
 }
 
-function nonTerminalExpression($file, &$token, $first=null)
+function nonTerminalExpression($file, &$token, $first=null, $firstLexeme=null)
 {
     $result = $first;
+    if (is_null($firstLexeme)) {
+        $firstLexeme = $token->lexeme;
+    }
 
     if (
         $token->code === TokenCodes::ADD_ARITHMETIC_OPERATOR ||
@@ -342,12 +396,14 @@ function nonTerminalExpression($file, &$token, $first=null)
         } elseif ($token->code !== TokenCodes::OPEN_PARENTHESIS) {
             $firstExpression = $token->code;
         }
-
-
+        $second = $token->lexeme;
         $secondExpression = multDivArithmeticExpression($file, $token);
 
         $result = checkCompatibility($firstExpression, $secondExpression, $operation, $token->line, $token->column);
-        nonTerminalExpression($file, $token);
+
+        intToFloatCast($result, $firstLexeme, $second);
+
+        nonTerminalExpression($file, $token, $result);
     }
 
     return $result;
@@ -355,18 +411,28 @@ function nonTerminalExpression($file, &$token, $first=null)
 
 function multDivArithmeticExpression($file, &$token)
 {
+    $first = $token->lexeme;
     $firstExpression = factor($file, $token);
 
+    $operation = $token->code;
     while (
         $token->code === TokenCodes::MULT_ARITHMETIC_OPERATOR ||
         $token->code === TokenCodes::DIV_ARITHMETIC_OPERATOR
     ) {
-        $operation = $token->code;
         $token = scan($file);
 
+        $second = $token->lexeme;
         $secondExpression = factor($file, $token);
 
         $firstExpression = checkCompatibility($firstExpression, $secondExpression, $operation, $token->line, $token->column);
+
+        intToFloatCast($firstExpression, $first, $second);
+
+        if ($operation === TokenCodes::MULT_ARITHMETIC_OPERATOR) {
+            echo GCI::getNewTemp().' = '.$first.' * '.$second."\n";
+        } else if ($operation === TokenCodes::DIV_ARITHMETIC_OPERATOR) {
+            echo GCI::getNewTemp().' = '.$first.' / '.$second."\n";
+        }
     }
     return $firstExpression;
 }
@@ -408,7 +474,7 @@ function factor($file, &$token)
 
 function checkCompatibility($firstValue, $secondValue, $operation, $line, $column)
 {
-    if (is_null($firstValue) || is_null($secondValue)) {
+    if ((is_null($firstValue) || is_null($secondValue)) && $operation !== TokenCodes::ASSIGNMENT_OPERATOR) {
         return $firstValue ?? $secondValue;
     }
 
@@ -434,6 +500,23 @@ function checkCompatibility($firstValue, $secondValue, $operation, $line, $colum
             'Erro na compatibilidade de tipos, valores do tipo "float" não podem ser atribuídos À um valor do tipo "int"');
     }
 
+    if ($firstValue === TokenCodes::INT_VALUE && $secondValue === TokenCodes::FLOAT_VALUE) {
+        return 'convertFirst';
+    }
+
+    if ($secondValue === TokenCodes::INT_VALUE && $firstValue === TokenCodes::FLOAT_VALUE) {
+        return 'convertSecond';
+    }
+
+    if ($firstValue === TokenCodes::FLOAT_VALUE && $secondValue === TokenCodes::FLOAT_VALUE) {
+        return TokenCodes::FLOAT_VALUE;
+    }
+
+    if ($operation === TokenCodes::ASSIGNMENT_OPERATOR) {
+        return 'convertSecond';
+    }
+
+
     return TokenCodes::FLOAT_VALUE;
 }
 
@@ -455,4 +538,19 @@ function searchSymbol($lexeme, $scope, $new)
     }
 
     return $code;
+}
+
+function intToFloatCast($result, &$first, &$second)
+{
+    if ($result === 'convertFirst') {
+        echo GCI::getNewTemp().' = int_to_float '.$first."\n";
+        $first = GCI::getRollbackTemp(1);
+        return true;
+    } elseif ($result === 'convertSecond') {
+        echo GCI::getNewTemp().' = int_to_float '.$second."\n";
+        $second = GCI::getRollbackTemp(1);
+        return true;
+    }
+
+    return false;
 }
